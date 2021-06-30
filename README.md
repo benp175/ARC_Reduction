@@ -1,2 +1,3 @@
 # ARC_Reduction
-Reduce ARC ARCTIC data
+
+The main reduction script is in main.py
