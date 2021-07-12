@@ -1,5 +1,5 @@
 #
-#	arcticereduction.py
+#	arcticreduction.py
 #
 #	Pipeline for reducing arctic photometry. Specifically using quad amp with a fast readout.
 #
@@ -14,7 +14,7 @@ import numpy as np
 from astropy.nddata import CCDData
 import ccdproc
 from astropy.modeling import models
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import glob
 from astropy.stats import mad_std
 import os
@@ -93,6 +93,7 @@ def create_master_bias(path, key):
 					sigma_clip_func=np.ma.median, sigma_clip_dev_func=mad_std)
 
 	return master_bias
+    
 
 # Create master dark
 def create_master_dark(path, key, master_bias):
@@ -106,8 +107,8 @@ def create_master_dark(path, key, master_bias):
 					sigma_clip_low_thresh=5, sigma_clip_high_thresh=5,
 					sigma_clip_func=np.ma.median, sigma_clip_dev_func=mad_std)
 
-	
 	return master_dark
+    
 
 
 # Create master flat
@@ -131,8 +132,8 @@ def create_master_flat(path, key, master_bias, master_dark, darkexptime):
 
 	master_flat_mask = ccdproc.ccdmask(master_flat, findbadcolumns = True)
 
-
 	return master_flat, master_flat_mask
+    
 
 
 # Apply cal frames
@@ -146,14 +147,18 @@ def reduce_data(path, biaskey, darkkey, flatkey, sciencekey, darkexptime):
 	# Create master calibrations frames
 	master_bias = create_master_bias(path, biaskey)
 	#master_bias.write(path+"reduced_data/master_bias.fits")
+	print("Created master bias")
 
 	master_dark = create_master_dark(path, darkkey, master_bias)
 	#master_dark.write(path+"reduced_data/master_dark.fits")
+	print("Created master dark")
 
 	master_flat, mask = create_master_flat(path, flatkey, master_bias, master_dark, darkexptime)
 	#master_flat.write(path+"reduced_data/master_flat.fits")
+	print("Created master flat")
 
 	# Apply calibration frames!
+	print("Applying calibration frames")
 	unreduced_science_files = glob.glob(path+sciencekey)
 	for file in unreduced_science_files:
 		trim, crmask = quad_remove(file)
@@ -176,7 +181,7 @@ def reduce_data(path, biaskey, darkkey, flatkey, sciencekey, darkexptime):
 		flat_corrected = flat_corrected.data
 		flat_corrected[mask] = np.nan
 		flat_corrected[crmask] = np.nan
-		kernel = Gaussian2DKernel(x_stddev=5)
+		kernel = Gaussian2DKernel(x_stddev=9)
 		final = interpolate_replace_nans(flat_corrected, kernel)
 		reduced_image = CCDData(final, unit = u.adu)
 		reduced_image.header = imgheader
