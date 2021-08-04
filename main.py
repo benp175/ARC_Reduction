@@ -21,6 +21,7 @@ import os
 from astropy.convolution import interpolate_replace_nans
 from astropy.convolution import Gaussian2DKernel
 from datetime import datetime
+import astrometry
 
 # Input all files to reduce????
 filename = "../Q4DD02/UT201115/lempo.0057.fits"
@@ -176,6 +177,7 @@ def reduce_data(path, biaskey, darkkey, flatkey, sciencekey, darkexptime):
 
 		flat_corrected = ccdproc.flat_correct(dark_corrected, master_flat, add_keyword = False)
 		del dark_corrected
+		print("Calibration frames applied")
 
 		# Now fix any problems with bad pixels and cosmic rays using astropy's convolve function
 		flat_corrected = flat_corrected.data
@@ -189,5 +191,8 @@ def reduce_data(path, biaskey, darkkey, flatkey, sciencekey, darkexptime):
 		# Save the reduced image!
 		filename = file.replace(path,"")
 		reduced_image.write(path+"reduced_data/"+filename)
+        
+        #Platesolve the reduced image
+		astrometry.platesolve(path+"reduced_data/",filename)
 
 		del reduced_image
