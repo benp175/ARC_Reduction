@@ -170,13 +170,19 @@ def reduce_data(path, biaskey, darkkey, flatkey, sciencekey, darkexptime):
 
 		bias_corrected = ccdproc.subtract_bias(trim, master_bias, add_keyword = False)
 
-		dark_corrected = ccdproc.subtract_dark(bias_corrected, master_dark, 
+       		# ARC recommends only subtracting darks for exposures >~60s, so filter dark correction by exposure time.
+		if exptime>60:
+			dark_corrected = ccdproc.subtract_dark(bias_corrected, master_dark, 
 						       dark_exposure = darkexptime*u.second, data_exposure = exptime*u.second,
 						       scale = True, add_keyword = False)
-		del bias_corrected
-
-		flat_corrected = ccdproc.flat_correct(dark_corrected, master_flat, add_keyword = False)
-		del dark_corrected
+			del bias_corrected
+			flat_corrected = ccdproc.flat_correct(dark_corrected, master_flat, add_keyword = False)
+			del dark_corrected
+		elif exptime<60:
+			print("Skipped dark subtraction because of short exposure time.")
+			flat_corrected = ccdproc.flat_correct(bias_corrected, master_flat, add_keyword = False)
+			del bias_corrected
+            
 		print("Calibration frames applied")
 
 		# Now fix any problems with bad pixels and cosmic rays using astropy's convolve function
