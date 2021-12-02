@@ -92,7 +92,6 @@ def create_master_bias(path, key):
 	master_bias = ccdproc.combine(trimmed_biases, method = "median", sigma_clip=True, 
 					sigma_clip_low_thresh=5, sigma_clip_high_thresh=5,
 					sigma_clip_func=np.ma.median, sigma_clip_dev_func=mad_std)
-
 	return master_bias
     
 
@@ -107,32 +106,48 @@ def create_master_dark(path, key, master_bias):
 	master_dark = ccdproc.combine(trimmed_darks, method = "median", sigma_clip=True, 
 					sigma_clip_low_thresh=5, sigma_clip_high_thresh=5,
 					sigma_clip_func=np.ma.median, sigma_clip_dev_func=mad_std)
-
 	return master_dark
     
 
 
 # Create master flat
-def create_master_flat(path, key, master_bias, master_dark, darkexptime):
+def create_master_flat(path, key, master_bias, master_dark, darkexptime, sciencekey):
+	#TODO: check median flat values 10000<x<50000s (all else fails==trim cornersin psf.py)
 	untrimmed_flat_files = glob.glob(path+key)
 	trimmed_flats = []
 	flat_exp_time = []
 	for file in untrimmed_flat_files:
-		trim = quad_remove(file)[0]
-		exptime = fits.open(file)[0].header["EXPTIME"]
-		bias_corrected = ccdproc.subtract_bias(trim, master_bias, add_keyword = False)
-		dark_corrected = ccdproc.subtract_dark(bias_corrected, master_dark, 
+		flat_hdu = fits.open(file)
+		flat_filter = flat_hdu[0].header["FILTER"]
+		img_filter = fits.open(sciencekey)[0].header["FILTER"]
+		flat_data = flat_hdu[0].data
+		mean_count = np.mean(flat_data)
+		if flat_filter == img_filter:
+			#print("Flat filter matches image filter")
+			if mean_count < 10000:
+				untrimmed_flat_files.remove(file)
+				print("Undersaturated flat removed")
+			elif mean_count > 60000:
+				untrimmed_flat_files.remove(file)
+				print("Oversaturated flat removed")
+			else:
+				trim = quad_remove(file)[0]
+				exptime = fits.open(file)[0].header["EXPTIME"]
+				bias_corrected = ccdproc.subtract_bias(trim, master_bias, add_keyword = False)
+				dark_corrected = ccdproc.subtract_dark(bias_corrected, master_dark, 
 						       dark_exposure = darkexptime*u.second, data_exposure = exptime*u.second,
 						       scale = True, add_keyword = False)
-		trimmed_flats.append(dark_corrected)
-		flat_exp_time.append(exptime)
+				trimmed_flats.append(dark_corrected)
+				flat_exp_time.append(exptime)
+		else:
+			print("Flat removed: filter does not match image filter")
+			untrimmed_flat_files.remove(file)
 
 	master_flat = ccdproc.combine(trimmed_flats, method='median', scale=inv_median,
                                    sigma_clip=True, sigma_clip_low_thresh=3, sigma_clip_high_thresh=3,
                                    sigma_clip_func=np.ma.median, signma_clip_dev_func=mad_std)
 
 	master_flat_mask = ccdproc.ccdmask(master_flat, findbadcolumns = True)
-
 	return master_flat, master_flat_mask
     
 
@@ -144,7 +159,9 @@ def reduce_data(path, biaskey, darkkey, flatkey, sciencekey, darkexptime):
 		os.mkdir(path+"reduced_data")
 	except FileExistsError:
 		print("Warning: reduced_data directory already exists")
-
+	
+	unreduced_science_files = glob.glob(path+sciencekey)
+	
 	# Create master calibrations frames
 	master_bias = create_master_bias(path, biaskey)
 	#master_bias.write(path+"reduced_data/master_bias.fits")
@@ -154,13 +171,12 @@ def reduce_data(path, biaskey, darkkey, flatkey, sciencekey, darkexptime):
 	#master_dark.write(path+"reduced_data/master_dark.fits")
 	print("Created master dark")
 
-	master_flat, mask = create_master_flat(path, flatkey, master_bias, master_dark, darkexptime)
+	master_flat, mask = create_master_flat(path, flatkey, master_bias, master_dark, darkexptime, unreduced_science_files[0])
 	#master_flat.write(path+"reduced_data/master_flat.fits")
 	print("Created master flat")
 
 	# Apply calibration frames!
 	print("Applying calibration frames")
-	unreduced_science_files = glob.glob(path+sciencekey)
 	for file in unreduced_science_files:
 		trim, crmask = quad_remove(file)
 		imgheader = fits.open(file)[0].header
