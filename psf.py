@@ -3,7 +3,7 @@
 #Code to solve ePSF of ARCTIC data
 #
 #Seneca Heilesen
-#11/4/2021
+#12/1/2021
 
 import os
 import numpy as np
@@ -58,14 +58,16 @@ def epsf(path, sciencekey):
             if abs(x[index] - x[index+1]) < 15:
                 if abs(y[index] - y[index+1]) < 15:
                     mask.append(False)
+                else:
+                    mask.append(True)
             else:
                 mask.append(True)
             index = index + 1
         index = 0
         mask.append(False)
         print(mask)
-        print(len(mask)) # for testing
-        print(len(x)) # for testing
+        #print(len(mask)) # for testing
+        #print(len(x)) # for testing
     
         #Create table of good star positions
         stars_tbl = Table()
